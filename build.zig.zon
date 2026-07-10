@@ -1,0 +1,14 @@
+.{
+    .name = .depz_cli,
+    .version = "0.0.0",
+    .fingerprint = 0x7494701f7c1ad910,
+    .minimum_zig_version = "0.17.0-dev.1158+1d1193aa7",
+    .dependencies = .{},
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+        "src",
+        "LICENSE-APACHE",
+        "LICENSE-MIT",
+    },
+}

@@ -23,6 +23,7 @@ pub fn run(ctx: Context, argv: []const []const u8) !void {
     const src = try ctx.root.readFileAllocOptions(ctx.io, "build.zig.zon", ctx.arena, .unlimited, .of(u8), 0);
     const man = try manifest.parse(ctx.arena, src);
     const target = parsed.positionals[0];
+    const alias = parsed.get("as");
     const registry = parsed.get("registry");
     const host = source.resolveHost(registry, man.depz.registry);
 
@@ -44,13 +45,13 @@ pub fn run(ctx: Context, argv: []const []const u8) !void {
         // to a commit and records both in .url as ?ref=<tag>#<commit>, so the
         // URL carries the pinned version — no .depz block needed.
         const url = try source.buildGitUrl(ctx.arena, host, repo, v);
-        try fetchSave(ctx, url);
+        try fetchSave(ctx, alias, url);
     } else {
         // Latest: track the default branch. zig fetch resolves it to a concrete
         // commit and writes it into .url (git+https://…#<commit>), so the URL is
         // the single source of truth — no .depz block to add.
         const url = try source.buildGitUrl(ctx.arena, host, repo, null);
-        try fetchSave(ctx, url);
+        try fetchSave(ctx, alias, url);
     }
 }
 
@@ -64,10 +65,11 @@ fn isRange(v: []const u8) bool {
     };
 }
 
-/// Run `zig fetch --save <url>`; it downloads, hashes, and writes the entry.
-fn fetchSave(ctx: Context, url: []const u8) !void {
+/// Run `zig fetch --save[=<alias>]`; it downloads, hashes, and writes the entry.
+fn fetchSave(ctx: Context, alias: ?[]const u8, url: []const u8) !void {
+    const save = if (alias) |a| try std.fmt.allocPrint(ctx.arena, "--save={s}", .{a}) else "--save";
     const result = try std.process.run(ctx.arena, ctx.io, .{
-        .argv = &.{ "zig", "fetch", "--save", url },
+        .argv = &.{ "zig", "fetch", save, url },
     });
     if (result.term != .exited or result.term.exited != 0)
         std.process.fatal("`zig fetch` failed for {s}:\n{s}", .{ url, result.stderr });

@@ -9,7 +9,7 @@ pub const Command = enum {
 
     fn meta(self: Command) Meta {
         return switch (self) {
-            .add => .{ .args = "<owner>/<repo>[@<tag>] [--registry=<host>]", .desc = "Add a dependency to build.zig.zon (wraps `zig fetch --save`)" },
+            .add => .{ .args = "<owner>/<repo>[@<tag>] [--as=<name>] [--registry=<host>]", .desc = "Add a dependency to build.zig.zon (wraps `zig fetch --save`)" },
             .list => .{ .args = "[--check] [--all] [--target=<latest|minor|patch>]", .desc = "List dependencies, or check for updates with --check" },
             .help => .{ .args = "", .desc = "Show this help text" },
         };

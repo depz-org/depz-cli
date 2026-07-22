@@ -55,6 +55,10 @@ depz add depz-org/example
 
 # from a non-GitHub host
 depz add foreverzer0/klack@v1.1.0 --registry=codeberg.org
+
+# rename the dependency (e.g. two deps whose repos share a name would
+# otherwise collide — the second silently overwrites the first)
+depz add depz-org/example@v1.0.0 --as=depz_org_example
 ```
 
 depz builds the `git+https://…` URL, runs `zig fetch --save`, and lets Zig

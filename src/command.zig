@@ -22,7 +22,7 @@ pub const usage = blk: {
     for (fieldNames) |fieldName| {
         const m = (@field(Command, fieldName)).meta();
         const left: []const u8 = if (m.args.len <= 0) fieldName else std.fmt.comptimePrint("{s} {s}", .{ fieldName, m.args });
-        cmds = cmds ++ std.fmt.comptimePrint(" {s:<14}{s}\n", .{ left, m.desc });
+        cmds = cmds ++ std.fmt.comptimePrint(" {s:<14}  {s}\n", .{ left, m.desc });
     }
     break :blk std.fmt.comptimePrint(
         \\depz — ergonomic dependency management for Zig

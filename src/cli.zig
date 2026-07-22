@@ -21,3 +21,14 @@ pub fn run(ctx: Context, args: []const [:0]const u8) !void {
 fn printUsage(io: std.Io) !void {
     try std.Io.File.stdout().writeStreamingAll(io, command.usage);
 }
+
+test {
+    _ = @import("args.zig");
+    _ = @import("semver.zig");
+    _ = @import("./commands/add.zig");
+    _ = @import("./commands/list.zig");
+    _ = @import("Context.zig");
+    _ = @import("./command.zig");
+    _ = @import("source.zig");
+    _ = @import("manifest.zig");
+}

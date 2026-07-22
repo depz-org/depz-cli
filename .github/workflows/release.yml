@@ -1,0 +1,43 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: mlugg/setup-zig@v2
+
+      - name: Build all targets
+        run: |
+          mkdir -p dist
+          targets="x86_64-linux aarch64-linux x86_64-macos aarch64-macos x86_64-windows"
+          for target in $targets; do
+            echo "Building $target..."
+            zig build -Doptimize=ReleaseSafe -Dtarget=$target
+
+            # Windows binaries carry a .exe suffix
+            if [ "$target" = "x86_64-windows" ]; then
+              bin="zig-out/bin/depz.exe"
+              out="dist/depz-$target.exe"
+            else
+              bin="zig-out/bin/depz"
+              out="dist/depz-$target"
+            fi
+
+            mv "$bin" "$out"
+            sha256sum "$out" > "$out.sha256"
+          done
+          ls -la dist/
+
+      - name: Upload to release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*

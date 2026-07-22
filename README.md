@@ -11,7 +11,7 @@ dependencies feels less manual.
 
 ## Requirements
 
-- **Zig `0.17.0-dev`** — depz is built against a development build and pins it deliberately.
+- **Zig `0.17.0-dev.1441+d5181a9c9`** — depz is built against a development build and pins it deliberately.
 - **`git`** on your `PATH` — depz shells out to `zig fetch` and `git ls-remote`.
 
 ## Install

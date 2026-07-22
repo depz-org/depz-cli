@@ -53,7 +53,7 @@ const keys = struct {
 };
 
 pub fn parse(arena: std.mem.Allocator, source: [:0]const u8) !Manifest {
-    var ast = try Ast.parse(arena, source, .zon);
+    var ast = try Ast.parse(arena, source, .{ .mode = .zon });
 
     const root = ast.nodeData(.root).node;
     var buf: [2]Ast.Node.Index = undefined;
@@ -90,7 +90,7 @@ pub fn parse(arena: std.mem.Allocator, source: [:0]const u8) !Manifest {
 /// (`depz add x@^1.0.0`), where the constraint must be stored separately from
 /// the resolved commit.
 pub fn injectDepz(arena: std.mem.Allocator, source: [:0]const u8, dep_name: []const u8, incoming: DepzMeta) ![:0]const u8 {
-    var ast = try Ast.parse(arena, source, .zon);
+    var ast = try Ast.parse(arena, source, .{ .mode = .zon });
     const root = ast.nodeData(.root).node;
 
     const deps_node = findField(ast, root, keys.dependencies) orelse return error.NoDependencies;
@@ -327,7 +327,7 @@ test "parse: path dependency location variant (guards .path parsed as .url)" {
 /// Confirm the output is valid zon first — a bad offset blows up as a parse
 /// error here instead of slipping through silently.
 fn expectParses(arena: std.mem.Allocator, src: [:0]const u8) !Manifest {
-    const ast = try Ast.parse(arena, src, .zon);
+    const ast = try Ast.parse(arena, src, .{ .mode = .zon });
     try testing.expectEqual(@as(usize, 0), ast.errors.len);
     return parse(arena, src);
 }

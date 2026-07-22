@@ -16,7 +16,21 @@ dependencies feels less manual.
 
 ## Install
 
-There are no prebuilt binaries yet. Build from source:
+### Download a binary
+
+Grab the binary for your platform from the [latest release](https://github.com/depz-org/depz-cli/releases/latest):
+
+- `depz-x86_64-linux`, `depz-aarch64-linux`
+- `depz-x86_64-macos`, `depz-aarch64-macos`
+- `depz-x86_64-windows.exe`
+
+Verify it with the matching `.sha256`, make it executable (`chmod +x`), and put it on your PATH.
+
+### Or build from source
+
+git clone https://github.com/depz-org/depz-cli
+cd depz-cli
+zig build
 
 ```sh
 git clone https://github.com/depz-org/depz-cli

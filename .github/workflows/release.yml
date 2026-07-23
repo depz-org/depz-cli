@@ -18,14 +18,20 @@ jobs:
       - name: Build all targets
         run: |
           mkdir -p dist
-          targets="x86_64-linux-musl aarch64-linux-musl x86_64-macos aarch64-macos x86_64-windows"
-          for target in $targets; do
-            echo "Building $target..."
-            zig build -Doptimize=ReleaseSafe -Dstrip=true -Dtarget=$target
+          targets="x86_64-linux-musl:x86_64-linux \
+                   aarch64-linux-musl:aarch64-linux \
+                   x86_64-macos:x86_64-macos \
+                   aarch64-macos:aarch64-macos \
+                   x86_64-windows:x86_64-windows"
+          for entry in $targets; do
+            triple="${entry%%:*}"
+            name="${entry##*:}"
+            echo "Building $triple -> depz-$name..."
+            zig build -Doptimize=ReleaseSafe -Dstrip=true -Dtarget=$triple
 
-            case "$target" in
-              *windows*) bin="zig-out/bin/depz.exe"; out="depz-$target.exe" ;;
-              *)         bin="zig-out/bin/depz";     out="depz-$target" ;;
+            case "$triple" in
+              *windows*) bin="zig-out/bin/depz.exe"; out="depz-$name.exe" ;;
+              *)         bin="zig-out/bin/depz";     out="depz-$name" ;;
             esac
 
             mv "$bin" "dist/$out"
@@ -34,7 +40,7 @@ jobs:
           ls -la dist/
 
       - name: Upload to release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: dist/*
           generate_release_notes: true

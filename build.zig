@@ -9,12 +9,15 @@ pub fn build(b: *std.Build) void {
         .target = target,
     });
 
+    const strip = b.option(bool, "strip", "Omit debug info") orelse false;
+
     const exe = b.addExecutable(.{
         .name = "depz",
         .root_module = b.createModule(.{
             .root_source_file = b.path("src/main.zig"),
             .target = target,
             .optimize = optimize,
+            .strip = strip,
             .imports = &.{
                 .{ .name = "depz_cli", .module = mod },
             },

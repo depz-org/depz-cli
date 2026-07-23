@@ -18,19 +18,29 @@ dependencies feels less manual.
 
 ### Download a binary
 
-Grab the binary for your platform from the [latest release](https://github.com/depz-org/depz-cli/releases/latest):
+```sh
+# one of: x86_64-linux, aarch64-linux, x86_64-macos, aarch64-macos
+TARGET=x86_64-linux
 
-- `depz-x86_64-linux`, `depz-aarch64-linux`
-- `depz-x86_64-macos`, `depz-aarch64-macos`
-- `depz-x86_64-windows.exe`
+curl -fsSL -o depz \
+  https://github.com/depz-org/depz-cli/releases/latest/download/depz-$TARGET
+chmod +x depz
+sudo mv depz /usr/local/bin/
+```
 
-Verify it with the matching `.sha256`, make it executable (`chmod +x`), and put it on your PATH.
+On Windows, download `depz-x86_64-windows.exe` from the
+[latest release](https://github.com/depz-org/depz-cli/releases/latest)
+and put it on your `PATH`.
+
+Each binary ships with a matching `.sha256`. To verify before installing:
+
+```sh
+curl -fsSL -O \
+  https://github.com/depz-org/depz-cli/releases/latest/download/depz-$TARGET.sha256
+sha256sum -c depz-$TARGET.sha256   # shasum -a 256 -c on macOS
+```
 
 ### Or build from source
-
-git clone https://github.com/depz-org/depz-cli
-cd depz-cli
-zig build
 
 ```sh
 git clone https://github.com/depz-org/depz-cli

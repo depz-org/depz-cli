@@ -18,22 +18,18 @@ jobs:
       - name: Build all targets
         run: |
           mkdir -p dist
-          targets="x86_64-linux aarch64-linux x86_64-macos aarch64-macos x86_64-windows"
+          targets="x86_64-linux-musl aarch64-linux-musl x86_64-macos aarch64-macos x86_64-windows"
           for target in $targets; do
             echo "Building $target..."
-            zig build -Doptimize=ReleaseSafe -Dtarget=$target
+            zig build -Doptimize=ReleaseSafe -Dstrip=true -Dtarget=$target
 
-            # Windows binaries carry a .exe suffix
-            if [ "$target" = "x86_64-windows" ]; then
-              bin="zig-out/bin/depz.exe"
-              out="dist/depz-$target.exe"
-            else
-              bin="zig-out/bin/depz"
-              out="dist/depz-$target"
-            fi
+            case "$target" in
+              *windows*) bin="zig-out/bin/depz.exe"; out="depz-$target.exe" ;;
+              *)         bin="zig-out/bin/depz";     out="depz-$target" ;;
+            esac
 
-            mv "$bin" "$out"
-            sha256sum "$out" > "$out.sha256"
+            mv "$bin" "dist/$out"
+            (cd dist && sha256sum "$out" > "$out.sha256")
           done
           ls -la dist/
 

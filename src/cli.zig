@@ -5,13 +5,14 @@ const args = @import("./args.zig");
 const addCommand = @import("./commands/add.zig");
 const listCommand = @import("./commands/list.zig");
 const versionCommand = @import("./commands/version.zig");
+const version = @import("build_options").version;
 
 pub fn run(ctx: Context, argv: []const [:0]const u8) !void {
     if (argv.len < 2) return printUsage(ctx);
 
     const a = argv[1];
-    if (std.mem.eql(u8, a, "--version") or std.mem.eql(u8, a, "-V"))
-        return printVersion(ctx);
+    if (command.isVersionFlag(a)) return printVersion(ctx);
+    if (command.isHelpFlag(a)) return printUsage(ctx);
 
     const cmd = std.meta.stringToEnum(command.Command, argv[1]) orelse {
         try printUsage(ctx);
@@ -31,7 +32,7 @@ fn printUsage(ctx: Context) !void {
 }
 
 fn printVersion(ctx: Context) !void {
-    try ctx.out.writeAll(@import("build_options").version ++ "\n");
+    try ctx.out.writeAll(version ++ "\n");
 }
 
 test {

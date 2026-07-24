@@ -11,6 +11,12 @@ pub fn build(b: *std.Build) void {
 
     const strip = b.option(bool, "strip", "Omit debug info") orelse false;
 
+    const zon = @import("build.zig.zon");
+    const options = b.addOptions();
+    options.addOption([]const u8, "version", zon.version);
+
+    mod.addOptions("build_options", options);
+
     const exe = b.addExecutable(.{
         .name = "depz",
         .root_module = b.createModule(.{

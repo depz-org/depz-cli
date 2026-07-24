@@ -125,7 +125,7 @@ depz list
 ### Check for updates
 
 ```bash
-depz list --check
+depz check
 ```
 
 ```
@@ -143,9 +143,10 @@ Only outdated dependencies are shown by default; `--all` includes the rest.
 current major version, `patch` within the current minor. The default, `latest`,
 accepts any newer tag.
 
+Pass `-u` to apply the updates instead of only reporting them.
+
 Tag-pinned dependencies are compared by version, dependencies tracking a branch
 by commit. Pre-release tags are skipped.
-
 ## How it works
 
 depz is a thin layer over Zig's own tooling — it does not host packages or run a

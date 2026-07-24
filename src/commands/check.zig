@@ -89,7 +89,7 @@ fn report(w: *std.Io.Writer, rows: []const Row, opts: Report) !void {
     for (rows) |row| {
         const up_to_date = row.isUpToDate();
         if (!up_to_date) outdated += 1;
-        if (opts.show_all and up_to_date) continue;
+        if (!opts.show_all and up_to_date) continue;
         name_w = @max(name_w, row.name.len);
         cur_w = @max(cur_w, row.current.len);
     }

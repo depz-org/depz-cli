@@ -1,4 +1,6 @@
-# depz
+<h1>
+  <img src="assets/logo.png" alt="depz" width="180">
+</h1>
 
 A CLI dependency manager for Zig projects.
 
@@ -31,7 +33,7 @@ Options:
 
 ## Requirements
 
-- **`git`** on your `PATH` — depz queries upstream tags and commits with `git ls-remote`.
+- **git** on your `PATH` — depz queries upstream tags and commits with `git ls-remote`.
 - **Zig** on your `PATH` — `depz add` shells out to `zig fetch --save`. Developed against `0.17.0-dev.1441+d5181a9c9`; also verified on `0.16.0`.
 
 ## Install

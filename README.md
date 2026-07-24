@@ -38,28 +38,30 @@ Options:
 
 ## Install
 
+```bash
+curl -fsSL https://raw.githubusercontent.com/depz-org/depz-cli/main/install.sh | sh
+```
+
+Installs the latest release to `~/.local/bin`. Set `DEPZ_INSTALL_DIR` to install
+elsewhere, or `DEPZ_VERSION` to pin a tag:
+
+```bash
+DEPZ_VERSION=v0.1.3 DEPZ_INSTALL_DIR=. sh install.sh
+```
+
 ### Download a binary
 
 ```bash
 # one of: x86_64-linux, aarch64-linux, x86_64-macos, aarch64-macos
-TARGET=x86_64-linux
+TARGET=x86_64-linux   # or aarch64-linux, x86_64-macos, aarch64-macos
+BASE=https://github.com/depz-org/depz-cli/releases/latest/download
 
-curl -fsSL -o depz \
-  https://github.com/depz-org/depz-cli/releases/latest/download/depz-$TARGET
-chmod +x depz
-sudo mv depz /usr/local/bin/
-```
+curl -fsSL -O $BASE/depz-$TARGET
+curl -fsSL -O $BASE/depz-$TARGET.sha256
+sha256sum -c depz-$TARGET.sha256      # shasum -a 256 -c on macOS
 
-On Windows, download `depz-x86_64-windows.exe` from the
-[latest release](https://github.com/depz-org/depz-cli/releases/latest)
-and put it on your `PATH`.
-
-Each binary ships with a matching `.sha256`. To verify before installing:
-
-```bash
-curl -fsSL -O \
-  https://github.com/depz-org/depz-cli/releases/latest/download/depz-$TARGET.sha256
-sha256sum -c depz-$TARGET.sha256   # shasum -a 256 -c on macOS
+chmod +x depz-$TARGET
+mv depz-$TARGET ~/.local/bin/depz
 ```
 
 ### Or build from source

@@ -3,6 +3,7 @@ const std = @import("std");
 pub const Command = enum {
     add,
     list,
+    check,
     version,
     help,
 
@@ -11,8 +12,9 @@ pub const Command = enum {
     fn meta(self: Command) Meta {
         return switch (self) {
             .add => .{ .args = "<owner>/<repo>[@<tag>] [--as=<name>] [--registry=<host>]", .desc = "Add a dependency to build.zig.zon (wraps `zig fetch --save`)" },
-            .list => .{ .args = "[--check] [--all] [--target=<latest|minor|patch>]", .desc = "List dependencies, or check for updates with --check" },
-            .version => .{ .args = "", .desc = "show version info" },
+            .list => .{ .args = "", .desc = "List the dependencies declared in build.zig.zon" },
+            .check => .{ .args = "[-u] [--all] [--target=<latest|minor|patch>]", .desc = "Check dependencies against upstream, or update them with -u" },
+            .version => .{ .args = "", .desc = "Show version info" },
             .help => .{ .args = "", .desc = "Show this help text" },
         };
     }

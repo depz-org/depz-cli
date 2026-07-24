@@ -2,8 +2,8 @@ const std = @import("std");
 const args = @import("../args.zig");
 const Context = @import("../Context.zig");
 const manifest = @import("../manifest.zig");
-const semver = @import("../semver.zig");
-const source = @import("../source.zig");
+const git = @import("../git.zig");
+const fetch = @import("../fetch.zig");
 
 /// Adds a dependency to the current project's `build.zig.zon`.
 ///
@@ -25,7 +25,7 @@ pub fn run(ctx: Context, argv: []const []const u8) !void {
     const target = parsed.positionals[0];
     const alias = parsed.get("as");
     const registry = parsed.get("registry");
-    const host = source.resolveHost(registry, man.depz.registry);
+    const host = git.resolveHost(registry, man.depz.registry);
 
     // Split repo from optional @version on the LAST '@', so an ssh-style
     // git@host:owner/repo keeps its leading git@ in the repo part.
@@ -39,19 +39,18 @@ pub fn run(ctx: Context, argv: []const []const u8) !void {
                 "`add` needs a concrete version like @v1.2.3 for now, not a range ('{s}'). Range resolution is coming.",
                 .{v},
             );
-        break :blk try source.buildGitUrl(ctx.arena, host, repo, v);
-    } else try source.buildGitUrl(ctx.arena, host, repo, null);
+        break :blk try git.buildGitUrl(ctx.arena, host, repo, v);
+    } else try git.buildGitUrl(ctx.arena, host, repo, null);
 
-    const result = try fetchSave(ctx, alias, url);
-    if (result.term != .exited or result.term.exited != 0) {
-        if (wantsAlias(result.stderr, alias))
-            std.process.fatal(
-                \\'{s}' has no build.zig.zon, so its name can't be inferred.
-                \\Re-run with --as=<name> to pick one:
-                \\  depz add {s} --as=<name>
-                \\
-            , .{ target, target });
-        std.process.fatal("`zig fetch` failed for {s}:\n{s}", .{ target, result.stderr });
+    switch (try fetch.fetchSave(ctx, alias, url)) {
+        .ok => {},
+        .name_not_inferable => std.process.fatal(
+            \\'{s}' has no build.zig.zon, so its name can't be inferred.
+            \\Re-run with --as=<name> to pick one:
+            \\  depz add {s} --as=<name>
+            \\
+        , .{ target, target }),
+        .failed => |stderr| std.process.fatal("`zig fetch` failed for {s}:\n{s}", .{ target, stderr }),
     }
 }
 
@@ -68,38 +67,7 @@ fn isRange(v: []const u8) bool {
 /// Run `zig fetch --save[=<alias>]`; it downloads, hashes, and writes the entry.
 fn fetchSave(ctx: Context, alias: ?[]const u8, url: []const u8) !std.process.RunResult {
     const save = if (alias) |a| try std.fmt.allocPrint(ctx.arena, "--save={s}", .{a}) else "--save";
-    return try std.process.run(ctx.arena, ctx.io, .{
+    return std.process.run(ctx.arena, ctx.io, .{
         .argv = &.{ "zig", "fetch", save, url },
     });
-}
-
-/// True if a failed `zig fetch` failed *specifically* because the package
-/// has no build.zig.zon to derive a name from — the one case `--as` fixes.
-///
-/// Matches zig's stderr text (zig 0.17.0-dev):
-///   error: unable to determine name; fetched package has no build.zig.zon file
-/// This couples us to an unstable, unpromised message: if zig rewords it,
-/// this returns false and we fall back to the raw error — degraded, not broken.
-///
-/// Guarded on `alias == null`: if the user already passed --as and it still
-/// failed, the cause isn't a missing name, so suggesting --as would mislead.
-fn wantsAlias(stderr: []const u8, alias: ?[]const u8) bool {
-    if (alias != null) return false;
-    return std.mem.indexOf(u8, stderr, "unable to determine name") != null;
-}
-
-test "wantsAlias: real 'no build.zig.zon' stderr with no alias → true" {
-    // Verbatim from `depz add kokke/tiny-regex-c`, zig 0.17.0-dev.
-    const stderr = "error: unable to determine name; fetched package has no build.zig.zon file\n";
-    try std.testing.expect(wantsAlias(stderr, null));
-}
-
-test "wantsAlias: same failure but alias already given → false" {
-    const stderr = "error: unable to determine name; fetched package has no build.zig.zon file\n";
-    try std.testing.expect(!wantsAlias(stderr, "my-lib"));
-}
-
-test "wantsAlias: an unrelated fetch failure → false" {
-    const stderr = "error: unable to resolve host 'github.com'\n";
-    try std.testing.expect(!wantsAlias(stderr, null));
 }

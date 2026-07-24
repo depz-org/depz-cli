@@ -1,19 +1,72 @@
-//! Everything depz needs to talk to git hosts and to read/write the git URLs
-//! that identify dependencies:
-//!   - URL construction (`buildGitUrl`) and host selection (`resolveHost`)
-//!   - URL parsing (`repoFromGitUrl`, `commitFromGitUrl`, `refFromGitUrl`)
-//!   - upstream queries via `git ls-remote` (`listTags`, `headCommit`)
+//! The git vocabulary: the `git+<url>[?ref=<tag>][#<commit>]` syntax depz uses
+//! to identify a dependency, plus upstream queries against a remote.
 //!
-//! Host-agnostic: anything `git` can reach works, not just GitHub. Network
-//! functions shell out to `git`; the pure parse/build helpers are unit-tested
-//! in isolation. If we outgrow ls-remote (rate limits, richer metadata), the
-//! transport can swap for an HTTP client while the parsers stay put.
+//! Host-agnostic by design — anything `git` can reach works, not just GitHub.
+//! Equally deliberate: this module speaks strings and `Context`, never
+//! `Dependency` or `Pin`. Translation between the two vocabularies lives in
+//! `source.zig`, and the dependency runs one way only.
+//!
+//! Network access shells out to `git ls-remote`. Every network call is a thin
+//! wrapper over a pure parser, so the parsing is tested without a network. If
+//! ls-remote stops being enough (rate limits, richer metadata), the transport
+//! swaps for an HTTP client and the parsers stay put.
 
 const std = @import("std");
 const Context = @import("./Context.zig");
 
 /// The default git host when no registry is configured.
 const default_host = "github.com";
+
+pub const GitUrl = struct {
+    /// The transport URL git itself understands — no `git+`, no pin.
+    /// Exactly what `git ls-remote` takes.
+    repo: []const u8,
+    /// `?ref=<tag>` — the human-meaningful pin, if present.
+    ref: ?[]const u8 = null,
+    /// `#<sha>` — the resolved commit, if present.
+    commit: ?[]const u8 = null,
+
+    /// Parse a `git+`-prefixed dependency URL. Returns null if `url` isn't one
+    /// (tarball, relative path, plain https), which subsumes the `git+` guard
+    /// callers would otherwise write by hand.
+    pub fn parse(url: []const u8) ?GitUrl {
+        const prefix = "git+";
+        if (!std.mem.startsWith(u8, url, prefix)) return null;
+        var rest = url[prefix.len..];
+
+        // Strip right to left: '#' sits after '?ref=', so it comes off first.
+        var commit: ?[]const u8 = null;
+        if (std.mem.lastIndexOfScalar(u8, rest, '#')) |i| {
+            commit = if (i + 1 == rest.len) null else rest[i + 1 ..];
+            rest = rest[0..i];
+        }
+
+        var ref: ?[]const u8 = null;
+        if (std.mem.indexOf(u8, rest, "?ref=")) |i| {
+            const r = rest[i + "?ref=".len ..];
+            ref = if (r.len == 0) null else r;
+            rest = rest[0..i];
+        }
+
+        return .{ .repo = rest, .ref = ref, .commit = commit };
+    }
+
+    /// The host component of `repo`, e.g. `github.com`. Null when `repo` has no
+    /// `scheme://authority` (ssh shorthand, local path).
+    pub fn host(self: GitUrl) ?[]const u8 {
+        const i = std.mem.indexOf(u8, self.repo, "://") orelse return null;
+        const authority = self.repo[i + 3 ..];
+        const end = std.mem.indexOfScalar(u8, authority, '/') orelse authority.len;
+        return authority[0..end];
+    }
+
+    /// Render back to canonical `git+<repo>[?ref=<ref>][#<commit>]` form.
+    pub fn format(self: GitUrl, writer: *std.Io.Writer) std.Io.Writer.Error!void {
+        try writer.print("git+{s}", .{self.repo});
+        if (self.ref) |r| try writer.print("?ref={s}", .{r});
+        if (self.commit) |c| try writer.print("#{s}", .{c});
+    }
+};
 
 /// Pick the git host for a dependency: dependency-level registry overrides
 /// project-level, which overrides the built-in default.
@@ -88,41 +141,6 @@ pub fn listTags(ctx: Context, repo_url: []const u8) ![]const []const u8 {
     return parseTags(ctx.arena, result.stdout);
 }
 
-/// Extract the pinned commit from a git dependency URL.
-///   git+https://github.com/x/y#abc123              -> abc123
-///   git+https://github.com/x/y?ref=dev#abc123      -> abc123
-/// Returns null if there's no `#commit` part.
-pub fn commitFromGitUrl(url: []const u8) ?[]const u8 {
-    const i = std.mem.lastIndexOfScalar(u8, url, '#') orelse return null;
-    const commit = url[i + 1 ..];
-    return if (commit.len == 0) null else commit;
-}
-
-/// Recover the plain repo URL from a git dependency URL, for `git ls-remote`.
-///   git+https://github.com/x/y#abc123          -> https://github.com/x/y
-///   git+https://github.com/x/y?ref=dev#abc123  -> https://github.com/x/y
-///   git+https://codeberg.org/a/b.git#v1.1.0    -> https://codeberg.org/a/b.git
-/// Returns null if `url` isn't a `git+` URL.
-pub fn repoFromGitUrl(url: []const u8) ?[]const u8 {
-    const prefix = "git+";
-    if (!std.mem.startsWith(u8, url, prefix)) return null;
-    const after = url[prefix.len..];
-    const cut = std.mem.indexOfAny(u8, after, "?#") orelse after.len;
-    return after[0..cut];
-}
-
-/// Extract the pinned ref (tag/branch) from a git URL's ?ref= query.
-///   git+https://github.com/x/y?ref=v1.0.0#commit  ->  v1.0.0
-///   git+https://github.com/x/y#commit             ->  null (no ref pinned)
-pub fn refFromGitUrl(url: []const u8) ?[]const u8 {
-    const marker = "?ref=";
-    const i = std.mem.indexOf(u8, url, marker) orelse return null;
-    const rest = url[i + marker.len ..];
-    // ref ends at '#' (commit) if present, else end of string
-    const end = std.mem.indexOfScalar(u8, rest, '#') orelse rest.len;
-    return rest[0..end];
-}
-
 /// Parse the stdout of `git ls-remote <url> HEAD` into the commit SHA.
 ///
 /// The relevant line is `<sha>\tHEAD`. Returns null if no such line is found
@@ -152,7 +170,41 @@ pub fn headCommit(ctx: Context, repo_url: []const u8) ![]const u8 {
     return parseHead(result.stdout) orelse error.NoHeadRef;
 }
 
+/// The URL to hand `zig fetch`: repo plus an *unresolved* committish (tag,
+/// branch, or SHA). Deliberately not `GitUrl` — that models a manifest entry,
+/// where the fragment is always a resolved SHA. zig rewrites this into
+/// `?ref=<tag>#<sha>` when it saves.
+pub fn fetchUrl(arena: std.mem.Allocator, repo: []const u8, committish: []const u8) ![]const u8 {
+    return std.fmt.allocPrint(arena, "git+{s}#{s}", .{ repo, committish });
+}
+
+/// Format a commit SHA for display: `#` sigil plus the first 8 chars.
+pub fn fmtSha(arena: std.mem.Allocator, sha: []const u8) ![]const u8 {
+    return std.fmt.allocPrint(arena, "#{s}", .{sha[0..@min(sha.len, 8)]});
+}
+
 // ───────────────────────── tests ─────────────────────────
+test "GitUrl round-trips" {
+    var arena_state = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena_state.deinit();
+    const arena = arena_state.allocator();
+
+    for ([_][]const u8{
+        "git+https://codeberg.org/x/y.git?ref=v1.1.0#78bd4ba5",
+        "git+https://github.com/x/y#354309b9",
+        "git+https://github.com/x/y?ref=v2.0.0",
+        "git+https://github.com/x/y",
+    }) |url| {
+        const parsed = GitUrl.parse(url).?;
+        try std.testing.expectEqualStrings(url, try std.fmt.allocPrint(arena, "{f}", .{parsed}));
+    }
+}
+
+test "GitUrl rejects non-git URLs" {
+    // The `git+` guard now lives in one place instead of at every call site.
+    try std.testing.expect(GitUrl.parse("https://example.com/z.tar.gz?ref=v1") == null);
+}
+
 test "resolveHost: dependency > project > default" {
     try std.testing.expectEqualStrings("codeberg.org", resolveHost("codeberg.org", "gitlab.com"));
     try std.testing.expectEqualStrings("gitlab.com", resolveHost(null, "gitlab.com"));
@@ -221,33 +273,6 @@ test "empty stdout yields no tags" {
     try std.testing.expectEqual(@as(usize, 0), tags.len);
 }
 
-test "commitFromGitUrl: plain, with ref, and none" {
-    try std.testing.expectEqualStrings("abc123", commitFromGitUrl("git+https://github.com/x/y#abc123").?);
-    try std.testing.expectEqualStrings("abc123", commitFromGitUrl("git+https://github.com/x/y?ref=dev#abc123").?);
-    try std.testing.expect(commitFromGitUrl("git+https://github.com/x/y") == null);
-}
-
-test "repoFromGitUrl: strips git+ prefix, ?ref, and #commit" {
-    try std.testing.expectEqualStrings("https://github.com/x/y", repoFromGitUrl("git+https://github.com/x/y#abc123").?);
-    try std.testing.expectEqualStrings("https://github.com/x/y", repoFromGitUrl("git+https://github.com/x/y?ref=dev#abc123").?);
-    try std.testing.expectEqualStrings("https://codeberg.org/a/b.git", repoFromGitUrl("git+https://codeberg.org/a/b.git#v1.1.0").?);
-    try std.testing.expect(repoFromGitUrl("https://github.com/x/y") == null);
-}
-
-test "refFromGitUrl" {
-    // 标准：?ref=tag#commit —— tag 在 ? 和 # 之间
-    try std.testing.expectEqualStrings("v1.1.0", refFromGitUrl("git+https://codeberg.org/x/y.git?ref=v1.1.0#78bd4ba5").?);
-
-    // 无 ref（latest 依赖）：只有 #commit —— 返回 null
-    try std.testing.expect(refFromGitUrl("git+https://github.com/x/y#354309b9") == null);
-
-    // 裸 URL（latest，无 # 无 ?ref）—— 返回 null
-    try std.testing.expect(refFromGitUrl("git+https://github.com/x/y") == null);
-
-    // ref 但没有 #commit（理论边界：ref 一直到结尾）
-    try std.testing.expectEqualStrings("v2.0.0", refFromGitUrl("git+https://github.com/x/y?ref=v2.0.0").?);
-}
-
 test "parseHead extracts the HEAD sha" {
     const stdout = "354309b9496780f0f81e741614db01cfcd076d74\tHEAD\n";
     try std.testing.expectEqualStrings(
@@ -266,4 +291,15 @@ test "parseHead ignores other refs, finds HEAD among them" {
 
 test "parseHead returns null on empty" {
     try std.testing.expect(parseHead("") == null);
+}
+
+test "fmtSha" {
+    var arena_state = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena_state.deinit();
+    const arena = arena_state.allocator();
+
+    try std.testing.expectEqualStrings("#78bd4ba5", try fmtSha(arena, "78bd4ba5e1c2d3f4a5b6"));
+    // Shorter than 8 chars: truncation is a no-op, no padding.
+    try std.testing.expectEqualStrings("#abc", try fmtSha(arena, "abc"));
+    try std.testing.expectEqualStrings("#", try fmtSha(arena, ""));
 }

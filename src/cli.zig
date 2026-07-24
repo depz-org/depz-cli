@@ -4,6 +4,7 @@ const command = @import("./command.zig");
 const args = @import("./args.zig");
 const addCommand = @import("./commands/add.zig");
 const listCommand = @import("./commands/list.zig");
+const checkCommand = @import("./commands/check.zig");
 const versionCommand = @import("./commands/version.zig");
 const version = @import("build_options").version;
 
@@ -22,6 +23,7 @@ pub fn run(ctx: Context, argv: []const [:0]const u8) !void {
     switch (cmd) {
         .add => try addCommand.run(ctx, argv),
         .list => try listCommand.run(ctx, argv),
+        .check => try checkCommand.run(ctx, argv),
         .version => try versionCommand.run(ctx, argv),
         .help => return printUsage(ctx),
     }
@@ -40,9 +42,10 @@ test {
     _ = @import("semver.zig");
     _ = @import("./commands/add.zig");
     _ = @import("./commands/list.zig");
+    _ = @import("./commands/check.zig");
     _ = @import("./commands/version.zig");
     _ = @import("Context.zig");
     _ = @import("./command.zig");
-    _ = @import("source.zig");
+    _ = @import("git.zig");
     _ = @import("manifest.zig");
 }

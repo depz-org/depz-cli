@@ -37,6 +37,11 @@ pub const Row = struct {
     }
 };
 
+const Report = struct {
+    show_all: bool = false,
+    applied: bool = false,
+};
+
 /// Checks each dependency in `build.zig.zon` against its upstream.
 ///
 /// Tag-pinned dependencies are compared by version, branch-tracking ones by
@@ -64,7 +69,7 @@ pub fn run(ctx: Context, argv: []const []const u8) !void {
     try ctx.out.print("Checking {d} dependenc{s}\n\n", .{ man.deps.len, plural });
 
     const rows = try gather(ctx, man.deps, target);
-    try report(ctx.out, rows, show_all);
+    try report(ctx.out, rows, .{ .show_all = show_all, .applied = apply });
 
     if (!apply) return;
 
@@ -74,29 +79,40 @@ pub fn run(ctx: Context, argv: []const []const u8) !void {
 }
 
 /// Render the check results as an aligned table, plus a footer for anything
-/// hidden. Pure formatting — no network, no Context.
-fn report(w: *std.Io.Writer, rows: []const Row, show_all: bool) !void {
+/// hidden and a hint for anything actionable. Pure formatting — no network,
+/// no Context.
+fn report(w: *std.Io.Writer, rows: []const Row, opts: Report) !void {
     var name_w: usize = 0;
     var cur_w: usize = 0;
-    var hidden: usize = 0;
+    var outdated: usize = 0;
+
     for (rows) |row| {
-        if (!show_all and row.isUpToDate()) {
-            hidden += 1;
-            continue;
-        }
+        const up_to_date = row.isUpToDate();
+        if (!up_to_date) outdated += 1;
+        if (opts.show_all and up_to_date) continue;
         name_w = @max(name_w, row.name.len);
         cur_w = @max(cur_w, row.current.len);
     }
 
     for (rows) |row| {
-        if (!show_all and row.isUpToDate()) continue;
+        if (!opts.show_all and row.isUpToDate()) continue;
         try writeRow(w, row, name_w, cur_w);
     }
 
-    if (hidden == rows.len) {
+    const shown = if (opts.show_all) rows.len else outdated;
+    const hidden = rows.len - shown;
+
+    if (shown > 0) try w.writeByte('\n');
+
+    if (outdated == 0) {
         try w.writeAll("All dependencies are up to date.\n");
-    } else if (hidden > 0) {
-        try w.print("\n{d} up to date. Run with --all to show {s}.\n", .{ hidden, if (hidden == 1) "it" else "them" });
+        return;
+    }
+    if (hidden > 0) {
+        try w.print("{d} up to date. Run with --all to show {s}.\n", .{ hidden, if (hidden == 1) "it" else "them" });
+    }
+    if (!opts.applied) {
+        try w.writeAll("Run with -u to update.\n");
     }
 }
 

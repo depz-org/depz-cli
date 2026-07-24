@@ -135,6 +135,7 @@ Checking 7 dependencies
   depz_org_example    v1.0.0  → v2.0.0
 
 5 up to date. Run with --all to show them.
+Run with -u to update.
 ```
 
 Only outdated dependencies are shown by default; `--all` includes the rest.

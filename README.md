@@ -2,23 +2,42 @@
 
 A CLI dependency manager for Zig projects.
 
-depz wraps `zig fetch` with npm-style ergonomics: short repo specs, version
-tags, update checking, and registry selection — so managing `build.zig.zon`
-dependencies feels less manual.
+depz wraps `zig fetch` with npm-style ergonomics: short repo specs, version tags, update checking, and registry selection — so managing `build.zig.zon` dependencies feels less manual.
 
+> [!NOTE]
 > **Early but usable.** The core commands work and are tested. Expect breaking
 > changes before 1.0 — the CLI surface and `build.zig.zon` metadata may still shift.
 
+```
+depz — ergonomic dependency management for Zig
+
+Usage:
+  depz <command> [args]
+
+  depz add <owner>/<repo>[@<tag>] [--as=<name>] [--registry=<host>]
+  depz list [--check] [--all] [--target=<latest|minor|patch>]
+
+Commands:
+  add       Add a dependency to build.zig.zon (wraps `zig fetch --save`)
+  list      List dependencies, or check for updates with --check
+  version   show version info
+  help      Show this help text
+
+Options:
+  -h, --help       Show this help text
+  -V, --version    Print the version string
+```
+
 ## Requirements
 
-- **Zig `0.17.0-dev.1441+d5181a9c9`** — depz is built against a development build and pins it deliberately.
-- **`git`** on your `PATH` — depz shells out to `zig fetch` and `git ls-remote`.
+- **`git`** on your `PATH` — depz queries upstream tags and commits with `git ls-remote`.
+- **Zig** on your `PATH` — `depz add` shells out to `zig fetch --save`. Developed against `0.17.0-dev.1441+d5181a9c9`; also verified on `0.16.0`.
 
 ## Install
 
 ### Download a binary
 
-```sh
+```bash
 # one of: x86_64-linux, aarch64-linux, x86_64-macos, aarch64-macos
 TARGET=x86_64-linux
 
@@ -34,7 +53,7 @@ and put it on your `PATH`.
 
 Each binary ships with a matching `.sha256`. To verify before installing:
 
-```sh
+```bash
 curl -fsSL -O \
   https://github.com/depz-org/depz-cli/releases/latest/download/depz-$TARGET.sha256
 sha256sum -c depz-$TARGET.sha256   # shasum -a 256 -c on macOS
@@ -42,7 +61,7 @@ sha256sum -c depz-$TARGET.sha256   # shasum -a 256 -c on macOS
 
 ### Or build from source
 
-```sh
+```bash
 git clone https://github.com/depz-org/depz-cli
 cd depz-cli
 zig build
@@ -56,7 +75,7 @@ Run inside a Zig project (one with a `build.zig.zon`).
 
 ### Add a dependency
 
-```sh
+```bash
 # a specific tag
 depz add depz-org/example@v1.0.0
 
@@ -66,52 +85,61 @@ depz add depz-org/example
 # from a non-GitHub host
 depz add foreverzer0/klack@v1.1.0 --registry=codeberg.org
 
-# rename the dependency (e.g. two deps whose repos share a name would
-# otherwise collide — the second silently overwrites the first)
+# under a different name
 depz add depz-org/example@v1.0.0 --as=depz_org_example
 ```
 
 depz builds the `git+https://…` URL, runs `zig fetch --save`, and lets Zig
-resolve and pin the exact commit into `build.zig.zon`. GitHub is the default
-host; `--registry` overrides it per command, and a project-level
-`.depz = .{ .registry = "…" }` in `build.zig.zon` sets a default for the project.
+resolve and pin the exact commit into `build.zig.zon`.
+
+`--as` matters when two dependencies come from repos that share a name —
+without it, the second overwrites the first with no warning.
+
+GitHub is the default host. `--registry` overrides it for a single command, and
+a project-level `.depz = .{ .registry = "…" }` in `build.zig.zon` changes the
+default for the whole project.
 
 ### List dependencies
 
-```sh
+```bash
 depz list
 ```
 
 ```
-2 dependencies
+7 dependencies
 
-  example        v1.0.0
-  httpz          git (52eb187c)
+  example             v2.0.0          
+  httpz               git (52eb187c)
+  dataformats         git (6ea14105)
+  klack               git (78bd4ba5)
+  depz_org_example    git (354309b9)  
+  libxev              git (9ce8e8e6)
+  @"tiny-regex-c"     git (f2632c6d)
 ```
 
 ### Check for updates
 
-```sh
+```bash
 depz list --check
 ```
 
 ```
-Checking 2 dependencies
+Checking 7 dependencies
 
-  example    v1.0.0  → v2.0.0
+  example             v1.0.0  → v2.0.0
+  depz_org_example    v1.0.0  → v2.0.0
 
-1 up to date. Run with --all to show them.
+5 up to date. Run with --all to show them.
 ```
 
-By default only outdated dependencies are shown. Options:
+Only outdated dependencies are shown by default; `--all` includes the rest.
 
-- `--all` — also list dependencies that are up to date
-- `--target=<latest|minor|patch>` — how far to look for updates
-  (`latest` is the default; `minor` stays within the current major; `patch`
-  stays within the current minor)
+`--target` bounds how far to look for an update: `minor` stays within the
+current major version, `patch` within the current minor. The default, `latest`,
+accepts any newer tag.
 
-Tag-pinned dependencies are compared by version; dependencies tracking a branch
-are compared by commit.
+Tag-pinned dependencies are compared by version, dependencies tracking a branch
+by commit. Pre-release tags are skipped.
 
 ## How it works
 

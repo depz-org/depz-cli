@@ -15,12 +15,13 @@ Usage:
   depz <command> [args]
 
   depz add <owner>/<repo>[@<tag>] [--as=<name>] [--registry=<host>]
-  depz list [--check] [--all] [--target=<latest|minor|patch>]
+  depz check [-u] [--all] [--target=<latest|minor|patch>]
 
 Commands:
   add       Add a dependency to build.zig.zon (wraps `zig fetch --save`)
-  list      List dependencies, or check for updates with --check
-  version   show version info
+  list      List the dependencies declared in build.zig.zon
+  check     Check dependencies against upstream, or update them with -u
+  version   Show version info
   help      Show this help text
 
 Options:

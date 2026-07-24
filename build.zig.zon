@@ -1,6 +1,6 @@
 .{
     .name = .depz_cli,
-    .version = "0.1.2",
+    .version = "0.1.3",
     .fingerprint = 0x7494701f7c1ad910,
     .minimum_zig_version = "0.17.0-dev.1441+d5181a9c9",
     .dependencies = .{},

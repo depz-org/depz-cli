@@ -36,7 +36,7 @@ pub fn run(ctx: Context, argv: []const []const u8) !void {
     const man = try manifest.parse(ctx.arena, src);
 
     if (man.deps.len == 0) {
-        try std.Io.File.stdout().writeStreamingAll(ctx.io, "No dependencies.\n");
+        try ctx.out.writeAll("No dependencies.\n");
         return;
     }
 
@@ -61,24 +61,22 @@ pub fn run(ctx: Context, argv: []const []const u8) !void {
         }
     }
 
-    var out: std.ArrayList(u8) = .empty;
     const plural = if (man.deps.len == 1) "y" else "ies";
-    try out.appendSlice(ctx.arena, try std.fmt.allocPrint(ctx.arena, "{s}{d} dependenc{s}\n\n", .{ if (do_check) "Checking " else "", man.deps.len, plural }));
+    try ctx.out.print("{s}{d} dependenc{s}\n\n", .{ if (do_check) "Checking " else "", man.deps.len, plural });
 
     for (rows.items) |row| {
         if (do_check and !show_all and isUpToDate(row)) continue;
-        try appendRow(ctx.arena, &out, row, name_w, cur_w);
+        try writeRow(ctx.out, row, name_w, cur_w);
     }
 
     if (do_check) {
         const all_up_to_date = (rows.items.len - hidden) == 0;
         if (all_up_to_date and hidden > 0) {
-            try out.appendSlice(ctx.arena, "All dependencies are up to date.\n");
+            try ctx.out.writeAll("All dependencies are up to date.\n");
         } else if (hidden > 0) {
-            try out.appendSlice(ctx.arena, try std.fmt.allocPrint(ctx.arena, "\n{d} up to date. Run with --all to show {s}.\n", .{ hidden, if (hidden == 1) "it" else "them" }));
+            try ctx.out.print("\n{d} up to date. Run with --all to show {s}.\n", .{ hidden, if (hidden == 1) "it" else "them" });
         }
     }
-    try std.Io.File.stdout().writeStreamingAll(ctx.io, out.items);
 }
 
 fn isUpToDate(row: Row) bool {
@@ -187,30 +185,26 @@ fn checkGitDep(ctx: Context, dep: manifest.Dependency) !Row {
     return .{ .name = dep.name, .current = shortSha(current), .status = .{ .update = latest } };
 }
 
-fn appendRow(arena: std.mem.Allocator, out: *std.ArrayList(u8), row: Row, name_w: usize, cur_w: usize) !void {
-    try out.appendSlice(arena, "  ");
-    try padTo(arena, out, row.name, name_w + 4);
-    try padTo(arena, out, row.current, cur_w + 2);
+fn writeRow(w: *std.Io.Writer, row: Row, name_w: usize, cur_w: usize) !void {
+    try w.writeAll("  ");
+    try padTo(w, row.name, name_w + 4);
+    try padTo(w, row.current, cur_w + 2);
 
     switch (row.status) {
-        .update => |newer| try out.appendSlice(arena, try std.fmt.allocPrint(arena, "→ {s}", .{newer})),
-        .up_to_date => try out.appendSlice(arena, "(up to date)"),
-        .local => try out.appendSlice(arena, "(local)"),
-        .no_match => try out.appendSlice(arena, "(no update in range)"),
+        .update => |newer| try w.print("→ {s}", .{newer}),
+        .up_to_date => try w.writeAll("(up to date)"),
+        .local => try w.writeAll("(local)"),
+        .no_match => try w.writeAll("(no update in range)"),
         .plain => {},
-        .failed => |e| try out.appendSlice(arena, try std.fmt.allocPrint(arena, "(check failed: {s})", .{e})),
+        .failed => |e| try w.print("(check failed: {s})", .{e}),
     }
-    try out.append(arena, '\n');
+    try w.writeByte('\n');
 }
 
 /// Append `s` left-aligned in a field of `width`, padding with spaces.
-fn padTo(arena: std.mem.Allocator, out: *std.ArrayList(u8), s: []const u8, width: usize) !void {
-    try out.appendSlice(arena, s);
-    if (s.len < width) {
-        const pad = width - s.len;
-        var i: usize = 0;
-        while (i < pad) : (i += 1) try out.append(arena, ' ');
-    }
+fn padTo(w: *std.Io.Writer, s: []const u8, width: usize) !void {
+    try w.writeAll(s);
+    if (s.len < width) try w.splatByteAll(' ', width - s.len);
 }
 
 /// First 8 chars of a commit SHA for display.

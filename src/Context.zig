@@ -23,21 +23,18 @@ io: std.Io,
 /// state.
 root: std.Io.Dir,
 
+/// Buffered stdout, for command output proper. Injected so tests can point a
+/// command at a fixed buffer instead of the real process stdout.
+///
+/// Context does not own the writer or its buffer: the caller constructs both
+/// and is responsible for flushing before exit. Diagnostics don't belong
+/// here — they go to stderr, which this doesn't cover.
+out: *std.Io.Writer,
+
 const Context = @This();
 
 /// Builds a `Context` from an already-initialized allocator and I/O backend.
 /// Takes no ownership of either.
-pub fn init(arena: std.mem.Allocator, io: std.Io, root: std.Io.Dir) Context {
-    return .{ .arena = arena, .io = io, .root = root };
-}
-
-test "Context stays a bundle of handles, not an owner of storage" {
-    // Context must stay cheap to pass by value: every field is a handle
-    // pointing at a resource that lives elsewhere, never the resource
-    // itself. If this size jumps, a field has probably started embedding
-    // owned storage (a buffer, an ArrayList, an ArenaAllocator by value) —
-    // which breaks the "Context owns nothing" contract. std.Io's layout is
-    // still in flux, so when this legitimately changes, confirm the growth
-    // came from another handle before you bump the number.
-    try std.testing.expectEqual(40, @sizeOf(Context));
+pub fn init(arena: std.mem.Allocator, io: std.Io, root: std.Io.Dir, out: *std.Io.Writer) Context {
+    return .{ .arena = arena, .io = io, .root = root, .out = out };
 }

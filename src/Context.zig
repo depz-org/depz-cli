@@ -28,13 +28,16 @@ root: std.Io.Dir,
 ///
 /// Context does not own the writer or its buffer: the caller constructs both
 /// and is responsible for flushing before exit. Diagnostics don't belong
-/// here — they go to stderr, which this doesn't cover.
+/// here — they go to `err`.
 out: *std.Io.Writer,
 
-const Context = @This();
+/// Buffered stderr, for diagnostics: warnings, per-item failures, anything
+/// that isn't the command's actual output. Kept separate from `out` so that
+/// callers piping stdout — scripts, agents — get clean data on the pipe with
+/// errors still surfacing on the terminal.
+///
+/// Same ownership rule as `out`: the caller constructs both the writer and its
+/// buffer, and is responsible for flushing before exit.
+err: *std.Io.Writer,
 
-/// Builds a `Context` from an already-initialized allocator and I/O backend.
-/// Takes no ownership of either.
-pub fn init(arena: std.mem.Allocator, io: std.Io, root: std.Io.Dir, out: *std.Io.Writer) Context {
-    return .{ .arena = arena, .io = io, .root = root, .out = out };
-}
+const Context = @This();

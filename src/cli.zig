@@ -8,7 +8,7 @@ const checkCommand = @import("./commands/check.zig");
 const versionCommand = @import("./commands/version.zig");
 const version = @import("build_options").version;
 
-pub fn run(ctx: Context, argv: []const [:0]const u8) !void {
+pub fn run(ctx: Context, argv: []const [:0]const u8) !u8 {
     if (argv.len < 2) return printUsage(ctx);
 
     const a = argv[1];
@@ -16,25 +16,27 @@ pub fn run(ctx: Context, argv: []const [:0]const u8) !void {
     if (command.isHelpFlag(a)) return printUsage(ctx);
 
     const cmd = std.meta.stringToEnum(command.Command, argv[1]) orelse {
-        try printUsage(ctx);
-        return error.UnknownCommand;
+        try ctx.err.writeAll(command.usage);
+        return 1;
     };
 
-    switch (cmd) {
+    return switch (cmd) {
         .add => try addCommand.run(ctx, argv),
         .list => try listCommand.run(ctx, argv),
         .check => try checkCommand.run(ctx, argv),
         .version => try versionCommand.run(ctx, argv),
         .help => return printUsage(ctx),
-    }
+    };
 }
 
-fn printUsage(ctx: Context) !void {
+fn printUsage(ctx: Context) !u8 {
     try ctx.out.writeAll(command.usage);
+    return 0;
 }
 
-fn printVersion(ctx: Context) !void {
+fn printVersion(ctx: Context) !u8 {
     try ctx.out.writeAll(version ++ "\n");
+    return 0;
 }
 
 test {

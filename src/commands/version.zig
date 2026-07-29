@@ -2,7 +2,7 @@ const builtin = @import("builtin");
 const Context = @import("../Context.zig");
 const version = @import("build_options").version;
 
-pub fn run(ctx: Context, argv: []const []const u8) !void {
+pub fn run(ctx: Context, argv: []const []const u8) !u8 {
     _ = argv;
     try ctx.out.print(
         \\depz {s}
@@ -19,4 +19,6 @@ pub fn run(ctx: Context, argv: []const []const u8) !void {
         @tagName(builtin.abi),
         @tagName(builtin.mode),
     });
+
+    return 0;
 }

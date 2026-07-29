@@ -37,6 +37,8 @@ pub const Row = struct {
     }
 };
 
+const Tally = struct { updates: usize = 0, failures: usize = 0 };
+
 const Report = struct {
     show_all: bool = false,
     applied: bool = false,
@@ -51,7 +53,7 @@ const Report = struct {
 /// Read-only unless `-u` is passed, which re-fetches everything the check
 /// found an update for. Without it, `check` is exactly the dry run of
 /// `check -u`.
-pub fn run(ctx: Context, argv: []const []const u8) !void {
+pub fn run(ctx: Context, argv: []const []const u8) !u8 {
     const parsed = try args.classify(ctx.arena, argv[2..]);
     const show_all = parsed.has("all");
     const apply = parsed.has("u");
@@ -62,7 +64,7 @@ pub fn run(ctx: Context, argv: []const []const u8) !void {
 
     if (man.deps.len == 0) {
         try ctx.out.writeAll("No dependencies.\n");
-        return;
+        return 0;
     }
 
     const plural = if (man.deps.len == 1) "y" else "ies";
@@ -71,11 +73,16 @@ pub fn run(ctx: Context, argv: []const []const u8) !void {
     const rows = try gather(ctx, man.deps, target);
     try report(ctx.out, rows, .{ .show_all = show_all, .applied = apply });
 
-    if (!apply) return;
+    if (!apply) {
+        const t = tally(rows);
+        return @intFromBool(t.updates > 0 or t.failures > 0);
+    }
 
-    const applied = try applyUpdates(ctx, rows);
-    if (applied > 0)
-        try ctx.out.print("\nUpdated {d} dependenc{s}.\n", .{ applied, if (applied == 1) "y" else "ies" });
+    const t = try applyUpdates(ctx, rows);
+    if (t.updates > 0)
+        try ctx.out.print("\nUpdated {d} dependenc{s}.\n", .{ t.updates, if (t.updates == 1) "y" else "ies" });
+
+    return @intFromBool(t.failures > 0);
 }
 
 /// Render the check results as an aligned table, plus a footer for anything
@@ -111,7 +118,7 @@ fn report(w: *std.Io.Writer, rows: []const Row, opts: Report) !void {
     if (hidden > 0) {
         try w.print("{d} up to date. Run with --all to show {s}.\n", .{ hidden, if (hidden == 1) "it" else "them" });
     }
-    if (!opts.applied) {
+    if (tally(rows).updates > 0 and !opts.applied) {
         try w.writeAll("Run with -u to update.\n");
     }
 }
@@ -123,8 +130,8 @@ pub fn gather(ctx: Context, deps: []const manifest.Dependency, target: Target) !
     return rows;
 }
 
-fn applyUpdates(ctx: Context, rows: []const Row) !usize {
-    var applied: usize = 0;
+fn applyUpdates(ctx: Context, rows: []const Row) !Tally {
+    var t: Tally = .{};
     for (rows) |row| {
         const up = switch (row.status) {
             .update => |u| u,
@@ -132,12 +139,15 @@ fn applyUpdates(ctx: Context, rows: []const Row) !usize {
         };
         const url = try git.fetchUrl(ctx.arena, up.repo, up.committish);
         switch (try fetch.fetchSave(ctx, row.name, url)) {
-            .ok => applied += 1,
-            // `-u` always passes an explicit name, so name_not_inferable can't occur.
-            else => try ctx.out.print("  {s}: update failed\n", .{row.name}),
+            .ok => t.updates += 1,
+            .failed => |stderr| {
+                t.failures += 1;
+                try ctx.err.print("update failed for {s}:\n{s}\n", .{ row.name, stderr });
+            },
+            .name_not_inferable => unreachable,
         }
     }
-    return applied;
+    return t;
 }
 
 fn parseTarget(parsed: args.Parsed) !Target {
@@ -226,6 +236,21 @@ fn writeRow(w: *std.Io.Writer, row: Row, name_w: usize, cur_w: usize) !void {
         .failed => |e| try w.print("(check failed: {s})", .{e}),
     }
     try w.writeByte('\n');
+}
+
+/// Actionable outcomes only. A path dep, a no-match, and a failed check are
+/// all "not up to date", but none of them is something `-u` can fix.
+fn tally(rows: []const Row) Tally {
+    var t: Tally = .{};
+    for (rows) |row| {
+        switch (row.status) {
+            .update => t.updates += 1,
+            .failed => t.failures += 1,
+            else => {},
+        }
+    }
+
+    return t;
 }
 
 /// Append `s` left-aligned in a field of `width`, padding with spaces.

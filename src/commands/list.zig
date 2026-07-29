@@ -8,7 +8,7 @@ const git = @import("../git.zig");
 ///
 /// Local only — reads the manifest and nothing else. Anything that needs to
 /// talk to an upstream lives in `check`.
-pub fn run(ctx: Context, argv: []const []const u8) !void {
+pub fn run(ctx: Context, argv: []const []const u8) !u8 {
     const parsed = try args.classify(ctx.arena, argv[2..]);
 
     // Migration shim: `--check` moved out into its own command.
@@ -21,7 +21,7 @@ pub fn run(ctx: Context, argv: []const []const u8) !void {
 
     if (man.deps.len == 0) {
         try ctx.out.writeAll("No dependencies.\n");
-        return;
+        return 0;
     }
 
     var name_w: usize = 0;
@@ -35,6 +35,8 @@ pub fn run(ctx: Context, argv: []const []const u8) !void {
         try padTo(ctx.out, dep.name, name_w + 4);
         try ctx.out.print("{s}\n", .{try pinLabel(ctx.arena, dep)});
     }
+
+    return 0;
 }
 
 fn pinLabel(arena: std.mem.Allocator, dep: manifest.Dependency) ![]const u8 {
